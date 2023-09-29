@@ -1,13 +1,12 @@
 import argparse
 
-from ConvNetworks import ConvEncoder
-from ConvNetworks import ConvDecoder
 from camaraderie import CAMARADERIE
 from preprocess import DataLoader
 
 parser = argparse.ArgumentParser()
 
 # Case 1 : Convolutional Networks
+parser.add_argument('--task', type=str, required=True)
 parser.add_argument('--n_chan', type=int)
 parser.add_argument('--input_d', type=str)
 
@@ -40,14 +39,17 @@ validation_dataset = "./Dataset/Client-A/Validation"
 test_dataset = "./Dataset/Client-B/Test"
 input_dimensions = tuple([int(i) for i in args.input_d.split('x')])
 
-dataloader = DataLoader(args.train_size, args.test_size, args.positive_set, args.negative_set)
-encoder = ConvEncoder(args.n_latent, args.n_chan, input_dimensions)
-decoder = ConvDecoder(args.n_latent, args.n_chan, input_dimensions)
-model = CAMARADERIE(encoder, decoder, args.n_latent, args.alpha, args.beta, args.gamma, args.rho, train_dataset, validation_dataset, test_dataset)
-
-# dataloader.create()
-# dataloader.load()
-model.train()
+if (args.task=="create"):
+    if not (args.train_size == None or args.test_size == None or args.positive_set == None or args.negative_set == None):
+        dataloader = DataLoader(args.train_size, args.test_size, args.positive_set, args.negative_set)
+        dataloader.create()
+        dataloader.load()
+    else:
+        print("Please enter train_size, test_size and paths to the folder containing the positive and negative training examples")
+        
+elif (args.task=="train"):
+    model = CAMARADERIE(args.n_chan, args.input_d, args.n_latent, args.alpha, args.beta, args.gamma, args.rho, train_dataset, validation_dataset, test_dataset)
+    model.train()
 model.visualise()
 model.convert()
 model.extract()

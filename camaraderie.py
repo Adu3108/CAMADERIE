@@ -6,16 +6,15 @@ from DCSAE_Encoder import DCSAE_Encoder
 from train import DCSAE_Trainer
 
 class CAMARADERIE:
-    def __init__(self, encoder, decoder, n_latent, alpha, beta, gamma, rho, train_dataset, val_dataset, test_dataset):
+    def __init__(self, n_chan, input_d, n_latent, alpha, beta, gamma, rho, train_dataset, val_dataset, test_dataset):
         super(CAMARADERIE, self).__init__()
         self.n_latent = n_latent
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
         self.rho = rho
-
-        self.encoder = encoder
-        self.decoder = decoder
+        self.n_chan = n_chan
+        self.input_d = input_d
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -26,7 +25,7 @@ class CAMARADERIE:
         self.hyperparameters_path = "./hyperparameters.pt"
 
     def train(self):
-        self.trainer = DCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.beta, self.rho, self.encoder, self.decoder, self.train_dataset, self.val_dataset, self.weights_path, self.hyperparameters_path)
+        self.trainer = DCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.beta, self.rho, self.n_chan, self.input_d, self.train_dataset, self.val_dataset, self.weights_path, self.hyperparameters_path)
         self.trainer.train()
         self.ClientA_features, self.ClientA_Class = self.trainer.latent()
 
@@ -39,7 +38,7 @@ class CAMARADERIE:
         self.hyperparameters = torch.load(self.hyperparameters_path)
 
         # Creating an instance of Encoder-only Network
-        self.encoder = DCSAE_Encoder(self.n_latent)
+        self.encoder = DCSAE_Encoder(self.n_latent, self.n_chan, self.input_d)
 
         # Extracting the encoder only portion of the VAE Network
         encoder_dict = self.encoder.state_dict()

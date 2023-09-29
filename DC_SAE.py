@@ -1,5 +1,7 @@
 from typing import Tuple
 import torch
+import torchvision
+import math
 
 class DCSAE(torch.nn.Module):
     def __init__(self,
@@ -8,8 +10,8 @@ class DCSAE(torch.nn.Module):
                  beta: float,
                  gamma: float,
                  rho: float,
-                 encoder,
-                 decoder,
+                 n_chan: int,
+                 input_d: Tuple[int],
                  batch: int = 1, 
                  ) -> None:
         super(DCSAE, self).__init__()
@@ -20,15 +22,74 @@ class DCSAE(torch.nn.Module):
         self.gamma = gamma
         self.rho = rho
         self.batch = batch
-        self.encoder = encoder
-        self.decoder = decoder
-        self.hidden_units = encoder.output_size()
+        self.n_chan = n_chan
+        self.input_d = input_d
 
         # Early Stopping
         self.patience = 10
         self.delta = 1e-4
         self.best_score = None
         self.num_bad_epochs = 0
+
+        # Calculating the size of intermediate output of convolutional layers
+        self.y_2, self.x_2 = self.get_layer_size(2)
+        self.y_3, self.x_3 = self.get_layer_size(3)
+        self.y_4, self.x_4 = self.get_layer_size(4)
+        self.y_5, self.x_5 = self.get_layer_size(5)
+        self.hidden_units = self.y_5 * self.x_5 * 16 # Number of neurons after convolution layers (height x width x n_chan)
+
+        # Convolutional Encoder network
+        self.enc_conv1 = torch.nn.Conv2d(
+            in_channels=self.n_chan,
+            out_channels=128,
+            kernel_size=3,
+            bias=False,
+            padding='same')
+        self.enc_conv1_bn = torch.nn.BatchNorm2d(128)
+        self.enc_conv1_af = torch.nn.LeakyReLU(0.1)
+        self.enc_conv1_pool = torch.nn.MaxPool2d(
+            kernel_size=2,
+            return_indices=True,
+            ceil_mode=True)
+
+        self.enc_conv2 = torch.nn.Conv2d(
+            in_channels=128,
+            out_channels=64,
+            kernel_size=3,
+            bias=False,
+            padding='same')
+        self.enc_conv2_bn = torch.nn.BatchNorm2d(64)
+        self.enc_conv2_af = torch.nn.LeakyReLU(0.1)
+        self.enc_conv2_pool = torch.nn.MaxPool2d(
+            kernel_size=2,
+            return_indices=True,
+            ceil_mode=True)
+
+        self.enc_conv3 = torch.nn.Conv2d(
+            in_channels=64,
+            out_channels=32,
+            kernel_size=3,
+            bias=False,
+            padding='same')
+        self.enc_conv3_bn = torch.nn.BatchNorm2d(32)
+        self.enc_conv3_af = torch.nn.LeakyReLU(0.1)
+        self.enc_conv3_pool = torch.nn.MaxPool2d(
+            kernel_size=2,
+            return_indices=True,
+            ceil_mode=True)
+
+        self.enc_conv4 = torch.nn.Conv2d(
+            in_channels=32,
+            out_channels=16,
+            kernel_size=3,
+            bias=False,
+            padding='same')
+        self.enc_conv4_bn = torch.nn.BatchNorm2d(16)
+        self.enc_conv4_af = torch.nn.LeakyReLU(0.1)
+        self.enc_conv4_pool = torch.nn.MaxPool2d(
+            kernel_size=2,
+            return_indices=True,
+            ceil_mode=True)
 
         # Dense Encoder Bottleneck
         self.enc_dense1 = torch.nn.Linear(self.hidden_units, 2048)
@@ -66,10 +127,76 @@ class DCSAE(torch.nn.Module):
         self.dec_dense1 = torch.nn.Linear(2048, self.hidden_units)
         self.dec_dense1_af = torch.nn.LeakyReLU(0.1)
 
+        # Convolutional Decoder Network
+        self.dec_conv4_pool = torch.nn.MaxUnpool2d(2)
+        self.dec_conv4 = torch.nn.ConvTranspose2d(
+            in_channels=16,
+            out_channels=32,
+            kernel_size=3,
+            bias=False,
+            padding=1)
+        self.dec_conv4_bn = torch.nn.BatchNorm2d(32)
+        self.dec_conv4_af = torch.nn.LeakyReLU(0.1)
+
+        self.dec_conv3_pool = torch.nn.MaxUnpool2d(2)
+        self.dec_conv3 = torch.nn.ConvTranspose2d(
+            in_channels=32,
+            out_channels=64,
+            kernel_size=3,
+            bias=False,
+            padding=1)
+        self.dec_conv3_bn = torch.nn.BatchNorm2d(64)
+        self.dec_conv3_af = torch.nn.LeakyReLU(0.1)
+
+        self.dec_conv2_pool = torch.nn.MaxUnpool2d(2)
+        self.dec_conv2 = torch.nn.ConvTranspose2d(
+            in_channels=64,
+            out_channels=128,
+            kernel_size=3,
+            bias=False,
+            padding=1)
+        self.dec_conv2_bn = torch.nn.BatchNorm2d(128)
+        self.dec_conv2_af = torch.nn.LeakyReLU(0.1)
+
+        self.dec_conv1_pool = torch.nn.MaxUnpool2d(2)
+        self.dec_conv1 = torch.nn.ConvTranspose2d(
+            in_channels=128,
+            out_channels=self.n_chan,
+            kernel_size=3,
+            bias=False,
+            padding=1)
+        self.dec_conv1_bn = torch.nn.BatchNorm2d(self.n_chan)
+        self.dec_conv1_af = torch.nn.Sigmoid()
+
+    def get_layer_size(self, layer: int) -> Tuple[int]:
+        y_l, x_l = self.input_d
+        for i in range(layer - 1):
+            y_l = math.ceil((y_l - 2) / 2 + 1)
+            x_l = math.ceil((x_l - 2) / 2 + 1)
+        return y_l, x_l
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         # Convolutional Encoder Network
-        z, self.indices1, self.indices2, self.indices3, self.indices4 = self.encoder.forward(x)
+        z = x
+        z = self.enc_conv1(z)
+        z = self.enc_conv1_bn(z)
+        z = self.enc_conv1_af(z)
+        z, self.indices1 = self.enc_conv1_pool(z)
+
+        z = self.enc_conv2(z)
+        z = self.enc_conv2_bn(z)
+        z = self.enc_conv2_af(z)
+        z, self.indices2 = self.enc_conv2_pool(z)
+
+        z = self.enc_conv3(z)
+        z = self.enc_conv3_bn(z)
+        z = self.enc_conv3_af(z)
+        z, self.indices3 = self.enc_conv3_pool(z)
+
+        z = self.enc_conv4(z)
+        z = self.enc_conv4_bn(z)
+        z = self.enc_conv4_af(z)
+        z, self.indices4 = self.enc_conv4_pool(z)
 
         # Dense Encoder Bottleneck
         z = z.view(z.size(0), -1) # Converting a 4D tensor (output of convolutional layer) to 1D tensor
@@ -117,7 +244,38 @@ class DCSAE(torch.nn.Module):
         y = self.dec_dense1_af(y)
 
         # Convolutional Decoder Network
-        y = self.decoder.forward(y, self.indices1, self.indices2, self.indices3, self.indices4)
+        y = torch.reshape(y, [self.batch, 16, self.y_5, self.x_5]) # Converting the 1D tensor (output of dense layers) to a 4D tensor
+        y = self.dec_conv4_pool(
+            y,
+            self.indices4,
+            output_size=torch.Size([self.batch, 16, self.y_4, self.x_4]))
+        y = self.dec_conv4(y)
+        y = self.dec_conv4_bn(y)
+        y = self.dec_conv4_af(y)
+
+        y = self.dec_conv3_pool(
+            y,
+            self.indices3,
+            output_size=torch.Size([self.batch, 32, self.y_3, self.x_3]))
+        y = self.dec_conv3(y)
+        y = self.dec_conv3_bn(y)
+        y = self.dec_conv3_af(y)
+
+        y = self.dec_conv2_pool(
+            y,
+            self.indices2,
+            output_size=torch.Size([self.batch, 64, self.y_2, self.x_2]))
+        y = self.dec_conv2(y)
+        y = self.dec_conv2_bn(y)
+        y = self.dec_conv2_af(y)
+
+        y = self.dec_conv1_pool(
+            y,
+            self.indices1,
+            output_size=torch.Size([self.batch, 128, self.input_d[0], self.input_d[1]]))
+        y = self.dec_conv1(y)
+        y = self.dec_conv1_bn(y)
+        y = self.dec_conv1_af(y)
 
         return y
     
@@ -134,6 +292,7 @@ class DCSAE(torch.nn.Module):
         z = mu + std * eps
 
         out = self.decode(z)
+
         return out, mu, logvar
     
     def testing(self,
@@ -146,8 +305,25 @@ class DCSAE(torch.nn.Module):
         network.load_state_dict(torch.load(weight_file)) # Load weights from the .pt file
         network.eval() # Set the network in evalution mode
 
-        dataset = self.encoder.preprocess(data_path)
+        # Defining Image Transformations
+        # 1. Convert the input image to a PyTorch Tensor
+        # 2. Resizing the image to (batch x channels x height x width)
+        # (Optional) 3. Incase of only one input channel, we convert the input image to a GrayScale Image
+        if self.n_chan == 1:
+            transforms = torchvision.transforms.Compose([
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Resize(self.input_d),
+                torchvision.transforms.Grayscale()])
+        else:
+            transforms = torchvision.transforms.Compose([
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Resize(self.input_d)])
 
+        # Applying image transformations to the input test dataset
+        dataset = torchvision.datasets.ImageFolder(
+            root=data_path,
+            transform=transforms)
+    
         # Set up a Python iterable over the input test dataset
         test_loader = torch.utils.data.DataLoader(
             dataset=dataset,
@@ -219,9 +395,30 @@ class DCSAE(torch.nn.Module):
         network = self.to(device)
         network.train()
 
-        dataset = self.encoder.preprocess(data_path)
-        val_dataset = self.encoder.preprocess(val_path)
+        # Defining Image Transformations
+        # 1. Convert the input image to a PyTorch Tensor
+        # 2. Resizing the image to (batch x channels x height x width)
+        # (Optional) 3. Incase of only one input channel, we convert the input image to a GrayScale Image
+        if self.n_chan == 1:
+            transforms = torchvision.transforms.Compose([
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Resize(self.input_d),
+                torchvision.transforms.Grayscale()])
+        else:
+            transforms = torchvision.transforms.Compose([
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Resize(self.input_d)])
 
+        # Applying image transformations to the input training dataset
+        dataset = torchvision.datasets.ImageFolder(
+            root=data_path,
+            transform=transforms)
+        
+        # Applying image transformations to the input validation dataset
+        val_dataset = torchvision.datasets.ImageFolder(
+            root=val_path,
+            transform=transforms)
+    
         # Sets up a Python iterable over the input training dataset
         train_loader = torch.utils.data.DataLoader(
             dataset=dataset,
@@ -243,6 +440,8 @@ class DCSAE(torch.nn.Module):
         hyperparameters["beta"] = self.beta
         hyperparameters["gamma"] = self.gamma
         hyperparameters["rho"] = self.rho
+        hyperparameters["n_chan"] = self.n_chan
+        hyperparameters["input_d"] = self.input_d
         torch.save(hyperparameters, hyperparameters_file)
 
         # Using Adam Optimizer for training

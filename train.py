@@ -7,13 +7,15 @@ from DC_SAE import DCSAE
 from vae import StandardVAE
 
 class DCSAE_Trainer:
-    def __init__(self, n_latent, alpha, beta, gamma, rho, encoder, decoder, train_path, val_path, weights_path, hyperparameters_path):
+    def __init__(self, n_latent, alpha, beta, gamma, rho, n_chan, input_d, train_path, val_path, weights_path, hyperparameters_path):
         super(DCSAE_Trainer, self).__init__()
         self.n_latent = n_latent
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
         self.rho = rho
+        self.input_d = input_d
+        self.n_chan = n_chan
         self.num_epochs = 100
         self.lr = 1e-4
 
@@ -21,9 +23,6 @@ class DCSAE_Trainer:
         self.validation_dataset = val_path
         self.weights_path = weights_path
         self.hyperparameters_path = hyperparameters_path
-        
-        self.encoder = encoder
-        self.decoder = decoder
 
         # Creating an instance of VAE Network for training at Client A
         self.ClientA_Network = DCSAE(
@@ -32,8 +31,8 @@ class DCSAE_Trainer:
             self.beta,
             self.gamma,
             self.rho,
-            self.encoder,
-            self.decoder
+            self.n_chan,
+            self.input_d
         )
         
     def train(self):
@@ -105,15 +104,14 @@ class DCSAE_Trainer:
             print()
 
 class StandardVAE_Trainer:
-    def __init__(self, n_latent, beta, encoder, decoder, train_path, val_path, weights_path, hyperparameters_path):
+    def __init__(self, n_latent, beta, n_chan, input_d, train_path, val_path, weights_path, hyperparameters_path):
         super(StandardVAE_Trainer, self).__init__()
         self.n_latent = n_latent
         self.beta = beta
+        self.n_chan = n_chan
+        self.input_d = input_d
         self.num_epochs = 100
         self.lr = 1e-4
-
-        self.encoder = encoder
-        self.decoder = decoder
 
         self.dataset = train_path
         self.validation_dataset = val_path
@@ -124,8 +122,8 @@ class StandardVAE_Trainer:
         self.network = StandardVAE(
             self.n_latent,
             self.beta,
-            self.encoder,
-            self.decoder)
+            self.n_chan,
+            self.input_d)
 
         # Training the created VAE instance on the labelled dataset at Client A
         self.network.train_self(
