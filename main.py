@@ -1,4 +1,5 @@
 import argparse
+import torch
 
 from camaraderie import CAMARADERIE
 from preprocess import DataLoader
@@ -15,10 +16,14 @@ parser.add_argument('--alpha', type=float)
 parser.add_argument('--beta', type=float)
 parser.add_argument('--gamma', type=float)
 parser.add_argument('--rho', type=float)
+
 parser.add_argument('--train_size', type=int)
 parser.add_argument('--test_size', type=int)
 parser.add_argument('--positive_set', type=str)
 parser.add_argument('--negative_set', type=str)
+
+parser.add_argument('--weights', type=str)
+parser.add_argument('--hyperparameters', type=str)
 
 args = parser.parse_args()
 
@@ -52,7 +57,20 @@ if (args.task=="create"):
 elif (args.task=="train"):
     model = CAMARADERIE(args.n_chan, input_dimensions, args.n_latent, args.alpha, args.beta, args.gamma, args.rho, train_dataset, validation_dataset, test_dataset)
     model.train()
-    # model.visualise()
-    # model.convert()
-    # model.extract()
-    # model.classify()
+
+elif (args.task=="visualise"):
+    hyperparameters = torch.load(args.hyperparameters)
+    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset)
+    model.visualise()
+
+elif (args.task=="reconstruct"):
+    hyperparameters = torch.load(args.hyperparameters)
+    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset)
+    model.reconstruct()
+
+elif (args.task=="classify"):
+    hyperparameters = torch.load(args.hyperparameters)
+    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset)
+    model.convert()
+    ClientB_features, ClientB_class = model.extract()
+    model.classify(ClientB_features, ClientB_class)

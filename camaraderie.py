@@ -24,13 +24,17 @@ class CAMARADERIE:
         self.weights_path = "./weights.pt"
         self.hyperparameters_path = "./hyperparameters.pt"
 
-    def train(self):
         self.trainer = DCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.beta, self.rho, self.n_chan, self.input_d, self.train_dataset, self.val_dataset, self.weights_path, self.hyperparameters_path)
+
+    def train(self):
         self.trainer.train()
-        self.ClientA_features, self.ClientA_Class = self.trainer.latent()
 
     def visualise(self):
-        self.trainer.visualize()
+        ClientA_features, ClientA_Class = self.trainer.latent()
+        self.trainer.visualize(ClientA_features, ClientA_Class)
+
+    def reconstruct(self):
+        self.trainer.reconstruct()
 
     def convert(self):
         print(f'Converting model {self.weights_path} to encoder-only version...\n')
@@ -55,32 +59,36 @@ class CAMARADERIE:
         print(f'Using data set {self.test_dataset}')
 
         result = self.encoder.testing(self.test_dataset, self.encoder_weights_path)
-        self.ClientB_class = result['final_class']
+        ClientB_class = result['final_class']
 
-        self.ClientB_features = []
+        ClientB_features = []
         for i in range(len(result["final_negative_mean"])):
             eps = torch.randn_like(result["final_negative_var"][i])
             mean_cpu = result["final_negative_mean"][i].cpu().detach().numpy()
             variance_cpu = result["final_negative_var"][i].cpu().detach().numpy()
             eps = eps.cpu().detach().numpy()
             z = mean_cpu + variance_cpu * eps
-            self.ClientB_features.append(z)
+            ClientB_features.append(z)
         print("Feature extraction complete")
 
-    def classify(self):
-        ClientA_Z_tensor = torch.squeeze(torch.tensor(self.ClientA_features))
+        return ClientB_features, ClientB_class
+
+    def classify(self, ClientB_features, ClientB_class):
+        ClientA_features, ClientA_class = self.trainer.latent()
+
+        ClientA_Z_tensor = torch.squeeze(torch.tensor(ClientA_features))
         ClientA_Z_numpy = ClientA_Z_tensor.cpu().detach().numpy()
 
-        ClientB_Z_tensor = torch.squeeze(torch.tensor(self.ClientB_features))
+        ClientB_Z_tensor = torch.squeeze(torch.tensor(ClientB_features))
         ClientB_Z_numpy = ClientB_Z_tensor.cpu().detach().numpy()
 
         classifier = SVC(gamma='auto', kernel='poly')
-        classifier.fit(ClientA_Z_numpy, self.class_list)
+        classifier.fit(ClientA_Z_numpy, ClientA_class)
 
         result = classifier.predict(ClientB_Z_numpy)
 
-        actual_negative_instances = self.ClientB_class.count(0)
-        actual_positive_instances = self.ClientB_class.count(1)
+        actual_negative_instances = ClientB_class.count(0)
+        actual_positive_instances = ClientB_class.count(1)
 
         negative_predictions = list(np.where(result == 0)[0])
         positive_predictions = list(np.where(result == 1)[0])
@@ -88,8 +96,8 @@ class CAMARADERIE:
         total_positive_prediction = len(positive_predictions)
         total_negative_prediction = len(negative_predictions)
 
-        true_positive_class = [self.ClientB_class[int(i)] for i in positive_predictions]
-        true_negative_class = [self.ClientB_class[int(i)] for i in negative_predictions]
+        true_positive_class = [ClientB_class[int(i)] for i in positive_predictions]
+        true_negative_class = [ClientB_class[int(i)] for i in negative_predictions]
 
         predicted_negative_instances = true_negative_class.count(0)
         predicted_positive_instances = true_positive_class.count(1)

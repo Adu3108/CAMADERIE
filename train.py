@@ -53,28 +53,27 @@ class DCSAE_Trainer:
             hyperparameters_file = self.hyperparameters_path)
 
     def latent(self):
-        self.result = self.ClientA_Network.testing(data_path=self.dataset, weight_file=self.weights_path)
+        result = self.ClientA_Network.testing(data_path=self.dataset, weight_file=self.weights_path)
 
-        self.ClientA_class = self.result["final_class"]
+        ClientA_class = result["final_class"]
 
         # Extracting latent space representation of each image in the training dataset
-        self.ClientA_Z = []
-        for i in range(len(self.result["final_negative_mean"])):
-            eps = torch.randn_like(self.result["final_negative_var"][i])
-            mean_cpu = self.result["final_negative_mean"][i].cpu().detach().numpy()
-            variance_cpu = self.result["final_negative_var"][i].cpu().detach().numpy()
+        ClientA_Z = []
+        for i in range(len(result["final_negative_mean"])):
+            eps = torch.randn_like(result["final_negative_var"][i])
+            mean_cpu = result["final_negative_mean"][i].cpu().detach().numpy()
+            variance_cpu = result["final_negative_var"][i].cpu().detach().numpy()
             eps = eps.cpu().detach().numpy()
             z = mean_cpu + variance_cpu * eps
-            self.ClientA_Z.append(z)
+            ClientA_Z.append(z)
 
-        return self.ClientA_Z, self.ClientA_class
+        return ClientA_Z, ClientA_class
 
-    def visualize(self):
+    def visualize(self, ClientA_Z, ClientA_class):
         colors = ['red','green']
-        for i in range(len(self.ClientA_Z)):
-            z = self.ClientA_Z[i]
-            plt.scatter(z[0][0], z[0][1], c=colors[self.ClientA_class[i]])
-        # plt.savefig("/content/test.svg", format="svg")
+        for i in range(len(ClientA_Z)):
+            z = ClientA_Z[i]
+            plt.scatter(z[0][0], z[0][1], c=colors[ClientA_class[i]])
     
     def reconstruct(self):
         # Generate a white image
@@ -83,13 +82,15 @@ class DCSAE_Trainer:
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         white_array = white_array.to(device)
 
-        for i in range(len(self.result["final_input"]))[:10]:
+        result = self.ClientA_Network.testing(data_path=self.dataset, weight_file=self.weights_path)
+
+        for i in range(len(result["final_input"]))[:10]:
             # Squeeze the image tensor to 3 dimensions (channels x height x width)
             # In case of GrayScale Images, repeat the same tensor in the 3 channels
-            input_image_tensor = torch.squeeze(self.result["final_input"][i])
+            input_image_tensor = torch.squeeze(result["final_input"][i])
             if input_image_tensor.shape[0] == 1:
                 input_image_tensor = input_image_tensor.repeat(3, 1, 1)
-            reconstruction_image_tensor = torch.squeeze(self.result["final_output"][i])
+            reconstruction_image_tensor = torch.squeeze(result["final_output"][i])
             if reconstruction_image_tensor.shape[0] == 1:
                 reconstruction_image_tensor = reconstruction_image_tensor.repeat(3, 1, 1)
 
