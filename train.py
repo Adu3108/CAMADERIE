@@ -74,6 +74,7 @@ class DCSAE_Trainer:
         for i in range(len(ClientA_Z)):
             z = ClientA_Z[i]
             plt.scatter(z[0][0], z[0][1], c=colors[ClientA_class[i]])
+        plt.savefig("./test.svg", format="svg")
     
     def reconstruct(self):
         # Generate a white image

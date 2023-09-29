@@ -43,6 +43,10 @@ train_dataset = "./Dataset/Client-A/Training"
 validation_dataset = "./Dataset/Client-A/Validation"
 test_dataset = "./Dataset/Client-B/Test"
 
+encoder_weights_path = "./enc_only_weights.pt"
+weights_path = "./weights.pt"
+hyperparameters_path = "./hyperparameters.pt"
+
 if args.input_d != None:
     input_dimensions = tuple([int(i) for i in args.input_d.split('x')])
 
@@ -55,22 +59,22 @@ if (args.task=="create"):
         print("Please enter train_size, test_size and paths to the folder containing the positive and negative training examples")
         
 elif (args.task=="train"):
-    model = CAMARADERIE(args.n_chan, input_dimensions, args.n_latent, args.alpha, args.beta, args.gamma, args.rho, train_dataset, validation_dataset, test_dataset)
+    model = CAMARADERIE(args.n_chan, input_dimensions, args.n_latent, args.alpha, args.beta, args.gamma, args.rho, train_dataset, validation_dataset, test_dataset, encoder_weights_path, weights_path, hyperparameters_path)
     model.train()
 
 elif (args.task=="visualise"):
     hyperparameters = torch.load(args.hyperparameters)
-    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset)
+    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset, encoder_weights_path, args.weights, args.hyperparameters)
     model.visualise()
 
 elif (args.task=="reconstruct"):
     hyperparameters = torch.load(args.hyperparameters)
-    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset)
+    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset, encoder_weights_path, args.weights, args.hyperparameters)
     model.reconstruct()
 
 elif (args.task=="classify"):
     hyperparameters = torch.load(args.hyperparameters)
-    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset)
+    model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset, encoder_weights_path, args.weights, args.hyperparameters)
     model.convert()
     ClientB_features, ClientB_class = model.extract()
     model.classify(ClientB_features, ClientB_class)

@@ -6,7 +6,7 @@ from DCSAE_Encoder import DCSAE_Encoder
 from train import DCSAE_Trainer
 
 class CAMARADERIE:
-    def __init__(self, n_chan, input_d, n_latent, alpha, beta, gamma, rho, train_dataset, val_dataset, test_dataset):
+    def __init__(self, n_chan, input_d, n_latent, alpha, beta, gamma, rho, train_dataset, val_dataset, test_dataset, encoder_weights_path, weights_path, hyperparameters_path):
         super(CAMARADERIE, self).__init__()
         self.n_latent = n_latent
         self.alpha = alpha
@@ -20,9 +20,9 @@ class CAMARADERIE:
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
 
-        self.encoder_weights_path = "./enc_only_weights.pt"
-        self.weights_path = "./weights.pt"
-        self.hyperparameters_path = "./hyperparameters.pt"
+        self.encoder_weights_path = encoder_weights_path
+        self.weights_path = weights_path
+        self.hyperparameters_path = hyperparameters_path
 
         self.trainer = DCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.beta, self.rho, self.n_chan, self.input_d, self.train_dataset, self.val_dataset, self.weights_path, self.hyperparameters_path)
 
