@@ -2,6 +2,7 @@ import torch
 import torchvision
 import matplotlib.pyplot as plt
 from PIL import Image
+import os
 
 from DC_SAE import DCSAE
 from vae import StandardVAE
@@ -74,7 +75,7 @@ class DCSAE_Trainer:
         for i in range(len(ClientA_Z)):
             z = ClientA_Z[i]
             plt.scatter(z[0][0], z[0][1], c=colors[ClientA_class[i]])
-        plt.savefig("./test.svg", format="svg")
+        plt.savefig("./latent.svg", format="svg")
     
     def reconstruct(self):
         # Generate a white image
@@ -83,16 +84,20 @@ class DCSAE_Trainer:
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         white_array = white_array.to(device)
 
+        # Get the reconstructions
         result = self.ClientA_Network.testing(data_path=self.dataset, weight_file=self.weights_path)
+
+        # Create a directory to store the reconstructions
+        os.mkdir("./Reconstruction")
 
         for i in range(len(result["final_input"]))[:10]:
             # Squeeze the image tensor to 3 dimensions (channels x height x width)
             # In case of GrayScale Images, repeat the same tensor in the 3 channels
             input_image_tensor = torch.squeeze(result["final_input"][i])
-            if input_image_tensor.shape[0] == 1:
+            if input_image_tensor.shape[0] != 3:
                 input_image_tensor = input_image_tensor.repeat(3, 1, 1)
             reconstruction_image_tensor = torch.squeeze(result["final_output"][i])
-            if reconstruction_image_tensor.shape[0] == 1:
+            if reconstruction_image_tensor.shape[0] != 3:
                 reconstruction_image_tensor = reconstruction_image_tensor.repeat(3, 1, 1)
 
             input_image_tensor = input_image_tensor.to(device)
@@ -102,8 +107,7 @@ class DCSAE_Trainer:
             concatenate_image = torch.cat([input_image_tensor, white_array, reconstruction_image_tensor], 2)
             image = torchvision.transforms.ToPILImage()(concatenate_image)
             image = image.resize((384,128), Image.LANCZOS)
-            image.show()
-            print()
+            image.save(f'./Reconstruction/reconstruction_{i}.jpg')
 
 class StandardVAE_Trainer:
     def __init__(self, n_latent, beta, n_chan, input_d, train_path, val_path, weights_path, hyperparameters_path):
