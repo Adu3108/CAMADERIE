@@ -10,15 +10,15 @@ parser.add_argument('--task', type=str, required=True)
 parser.add_argument('--n_chan', type=int)
 parser.add_argument('--input_d', type=str)
 
-parser.add_argument('--n_latent', type=int, required=True)
-parser.add_argument('--alpha', type=float, required=True)
-parser.add_argument('--beta', type=float, required=True)
-parser.add_argument('--gamma', type=float, required=True)
-parser.add_argument('--rho', type=float, required=True)
-parser.add_argument('--train_size', type=int, required=True)
-parser.add_argument('--test_size', type=int, required=True)
-parser.add_argument('--positive_set', type=str, required=True)
-parser.add_argument('--negative_set', type=str, required=True)
+parser.add_argument('--n_latent', type=int)
+parser.add_argument('--alpha', type=float)
+parser.add_argument('--beta', type=float)
+parser.add_argument('--gamma', type=float)
+parser.add_argument('--rho', type=float)
+parser.add_argument('--train_size', type=int)
+parser.add_argument('--test_size', type=int)
+parser.add_argument('--positive_set', type=str)
+parser.add_argument('--negative_set', type=str)
 
 args = parser.parse_args()
 
@@ -37,7 +37,9 @@ args = parser.parse_args()
 train_dataset = "./Dataset/Client-A/Training"
 validation_dataset = "./Dataset/Client-A/Validation"
 test_dataset = "./Dataset/Client-B/Test"
-input_dimensions = tuple([int(i) for i in args.input_d.split('x')])
+
+if args.input_d != None:
+    input_dimensions = tuple([int(i) for i in args.input_d.split('x')])
 
 if (args.task=="create"):
     if not (args.train_size == None or args.test_size == None or args.positive_set == None or args.negative_set == None):
@@ -48,9 +50,9 @@ if (args.task=="create"):
         print("Please enter train_size, test_size and paths to the folder containing the positive and negative training examples")
         
 elif (args.task=="train"):
-    model = CAMARADERIE(args.n_chan, args.input_d, args.n_latent, args.alpha, args.beta, args.gamma, args.rho, train_dataset, validation_dataset, test_dataset)
+    model = CAMARADERIE(args.n_chan, input_dimensions, args.n_latent, args.alpha, args.beta, args.gamma, args.rho, train_dataset, validation_dataset, test_dataset)
     model.train()
-model.visualise()
-model.convert()
-model.extract()
-model.classify()
+    # model.visualise()
+    # model.convert()
+    # model.extract()
+    # model.classify()
