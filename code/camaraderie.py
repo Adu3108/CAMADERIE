@@ -26,7 +26,7 @@ class CAMARADERIE:
         self.weights_path = weights_path
         self.hyperparameters_path = hyperparameters_path
 
-        self.trainer = DCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.beta, self.rho, self.n_chan, self.input_d, self.train_dataset, self.val_dataset, self.weights_path, self.hyperparameters_path)
+        self.trainer = DCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.gamma, self.rho, self.n_chan, self.input_d, self.train_dataset, self.val_dataset, self.weights_path, self.hyperparameters_path)
 
     def train(self):
         self.trainer.train()
@@ -133,7 +133,7 @@ class NumCAMARADERIE:
         self.weights_path = weights_path
         self.hyperparameters_path = hyperparameters_path
 
-        self.trainer = NumDCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.beta, self.rho, self.train_dataset, self.val_dataset, self.train_labels, self.val_labels, self.weights_path, self.hyperparameters_path)
+        self.trainer = NumDCSAE_Trainer(self.n_latent, self.alpha, self.beta, self.gamma, self.rho, self.train_dataset, self.val_dataset, self.train_labels, self.val_labels, self.weights_path, self.hyperparameters_path)
 
     def train(self):
         self.trainer.train()
@@ -160,31 +160,40 @@ class NumCAMARADERIE:
         print("Conversion to Encoder-only Network complete")
 
     def extract(self):
-        print(f'Starting feature extraction for input size {self.hyperparameters["input_d"]}')
         print(f'n_latent={self.hyperparameters["n_latent"]}')
 
         result = self.encoder.testing(self.test_dataset, self.test_labels, self.encoder_weights_path)
         ClientB_class = result['final_class']
 
-        ClientB_features = []
+        torch.manual_seed(0)
+        ClientB_positive_features = []
+        for i in range(len(result["final_positive_mean"])):
+            eps = torch.randn_like(result["final_positive_var"][i])
+            mean_cpu = result["final_positive_mean"][i].cpu().detach().numpy()
+            variance_cpu = result["final_positive_var"][i].cpu().detach().numpy()
+            eps = eps.cpu().detach().numpy()
+            z = mean_cpu + variance_cpu * eps
+            ClientB_positive_features.append(z)
+
+        ClientB_negative_features = []
         for i in range(len(result["final_negative_mean"])):
             eps = torch.randn_like(result["final_negative_var"][i])
             mean_cpu = result["final_negative_mean"][i].cpu().detach().numpy()
             variance_cpu = result["final_negative_var"][i].cpu().detach().numpy()
             eps = eps.cpu().detach().numpy()
             z = mean_cpu + variance_cpu * eps
-            ClientB_features.append(z)
+            ClientB_negative_features.append(z)
         print("Feature extraction complete")
 
-        return ClientB_features, ClientB_class
+        return ClientB_positive_features, ClientB_negative_features, ClientB_class
 
-    def classify(self, ClientB_features, ClientB_class):
+    def classify(self, ClientB_positive_features, ClientB_negative_features, ClientB_class):
         ClientA_features, ClientA_class = self.trainer.latent()
 
         ClientA_Z_tensor = torch.squeeze(torch.tensor(ClientA_features))
         ClientA_Z_numpy = ClientA_Z_tensor.cpu().detach().numpy()
 
-        ClientB_Z_tensor = torch.squeeze(torch.tensor(ClientB_features))
+        ClientB_Z_tensor = torch.squeeze(torch.tensor(ClientB_negative_features))
         ClientB_Z_numpy = ClientB_Z_tensor.cpu().detach().numpy()
 
         classifier = SVC(gamma='auto', kernel='poly')

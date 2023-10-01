@@ -1,6 +1,7 @@
 import argparse
 import torch
 import pandas as pd
+from sklearn import preprocessing
 
 from camaraderie import CAMARADERIE
 from camaraderie import NumCAMARADERIE
@@ -49,16 +50,31 @@ hyperparameters_path = "./hyperparameters.pt"
 if args.input_d != None:
     input_dimensions = tuple([int(i) for i in args.input_d.split('x')])
 
-if not (args.train_path == None or args.val_path == None or args.test_path == None):
+eps = 1e-5
+
+if not (args.train_path == None):
     train_df = pd.read_csv(args.train_path)
-    val_df = pd.read_csv(args.val_path)
-    test_df = pd.read_csv(args.test_path)
     train_labels = torch.Tensor(train_df["y"])
+    train_df.drop(["y"], axis=1, inplace=True)
+    train_scaler = preprocessing.StandardScaler().fit(train_df)
+    train_data = train_scaler.transform(train_df)
+    train_data = torch.Tensor(train_data) + eps
+
+if not (args.val_path == None):
+    val_df = pd.read_csv(args.val_path)
     val_labels = torch.Tensor(val_df["y"])
+    val_df.drop(["y"], axis=1, inplace=True)
+    val_scaler = preprocessing.StandardScaler().fit(val_df)
+    val_data = val_scaler.transform(val_df)
+    val_data = torch.Tensor(val_data) + eps
+
+if not (args.test_path == None):
+    test_df = pd.read_csv(args.test_path)
     test_labels = torch.Tensor(test_df["y"])
-    train_data = torch.Tensor(train_df.drop(["y"], axis=1))
-    val_data = torch.Tensor(val_df.drop(["y"], axis=1))
-    test_data = torch.Tensor(test_df.drop(["y"], axis=1))
+    test_df.drop(["y"], axis=1, inplace=True)
+    test_scaler = preprocessing.StandardScaler().fit(test_df)
+    test_data = test_scaler.transform(test_df)
+    test_data = torch.Tensor(test_data) + eps
 
 if (args.task=="create"):
     if not (args.train_size == None or args.test_size == None or args.positive_set == None or args.negative_set == None):
@@ -82,7 +98,7 @@ elif (args.task=="visualise"):
     if (args.type=="image"):
         model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset, encoder_weights_path, args.weights, args.hyperparameters)
     elif (args.type=="num"):
-        model = NumCAMARADERIE(hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_data, val_data, test_data, train_labels, val_labels, test_labels, encoder_weights_path, args.weights_path, args.hyperparameters)
+        model = NumCAMARADERIE(hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_data, val_data, test_data, train_labels, val_labels, test_labels, encoder_weights_path, args.weights, args.hyperparameters)
     model.visualise()
 
 elif (args.task=="reconstruct"):
@@ -96,7 +112,7 @@ elif (args.task=="classify"):
     if (args.type=="image"):
         model = CAMARADERIE(hyperparameters["n_chan"], hyperparameters["input_d"], hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_dataset, validation_dataset, test_dataset, encoder_weights_path, args.weights, args.hyperparameters)
     elif (args.type=="num"):
-        model = NumCAMARADERIE(hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_data, val_data, test_data, train_labels, val_labels, test_labels, encoder_weights_path, args.weights_path, args.hyperparameters)
+        model = NumCAMARADERIE(hyperparameters["n_latent"], hyperparameters["alpha"], hyperparameters["beta"], hyperparameters["gamma"], hyperparameters["rho"], train_data, val_data, test_data, train_labels, val_labels, test_labels, encoder_weights_path, args.weights, args.hyperparameters)
     model.convert()
-    ClientB_features, ClientB_class = model.extract()
-    model.classify(ClientB_features, ClientB_class)
+    ClientB_positive_features, ClientB_negative_features, ClientB_class = model.extract()
+    model.classify(ClientB_positive_features, ClientB_negative_features, ClientB_class)

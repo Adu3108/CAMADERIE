@@ -211,8 +211,6 @@ class NumDCSAE(torch.nn.Module):
         hyperparameters["beta"] = self.beta
         hyperparameters["gamma"] = self.gamma
         hyperparameters["rho"] = self.rho
-        hyperparameters["n_chan"] = self.n_chan
-        hyperparameters["input_d"] = self.input_d
         torch.save(hyperparameters, hyperparameters_file)
 
         # Using Adam Optimizer for training

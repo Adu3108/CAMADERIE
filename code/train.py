@@ -76,7 +76,7 @@ class DCSAE_Trainer:
         for i in range(len(ClientA_Z)):
             z = ClientA_Z[i]
             plt.scatter(z[0][0], z[0][1], c=colors[ClientA_class[i]])
-        plt.savefig("./latent.svg", format="svg")
+        plt.savefig("./latent.png", format="png")
     
     def reconstruct(self):
         # Generate a white image
@@ -112,7 +112,7 @@ class DCSAE_Trainer:
 
 class NumDCSAE_Trainer:
     def __init__(self, n_latent, alpha, beta, gamma, rho, train_data, val_data, train_labels, val_labels, weights_path, hyperparameters_path):
-        super(DCSAE_Trainer, self).__init__()
+        super(NumDCSAE_Trainer, self).__init__()
         self.n_latent = n_latent
         self.alpha = alpha
         self.beta = beta
@@ -177,7 +177,7 @@ class NumDCSAE_Trainer:
         colors = ['red','green']
         for i in range(len(ClientA_Z)):
             z = ClientA_Z[i]
-            plt.scatter(z[0][0], z[0][1], c=colors[ClientA_class[i]])
+            plt.scatter(z[0], z[1], c=colors[ClientA_class[i]])
         plt.savefig("./latent.png", format="png")
     
 class StandardVAE_Trainer:
@@ -215,6 +215,7 @@ class StandardVAE_Trainer:
         self.result = self.network.testing(data_path=self.dataset, weight_file=self.weights_path)
         self.ClientA_class = self.result["final_class"]
 
+        torch.manual_seed(0)
         # Extracting latent space representation of each image in the training dataset
         self.ClientA_Z = []
         for i in range(len(self.result["final_mean"])):
