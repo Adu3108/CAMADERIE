@@ -5,6 +5,7 @@ from PIL import Image
 import os
 
 from DC_SAE import DCSAE
+from NumDC_SAE import NumDCSAE
 from vae import StandardVAE
 
 class DCSAE_Trainer:
@@ -75,7 +76,7 @@ class DCSAE_Trainer:
         for i in range(len(ClientA_Z)):
             z = ClientA_Z[i]
             plt.scatter(z[0][0], z[0][1], c=colors[ClientA_class[i]])
-        plt.savefig("./latent.svg", format="svg")
+        plt.savefig("./latent.png", format="png")
     
     def reconstruct(self):
         # Generate a white image
@@ -109,6 +110,76 @@ class DCSAE_Trainer:
             image = image.resize((384,128), Image.LANCZOS)
             image.save(f'./Reconstruction/reconstruction_{i}.jpg')
 
+class NumDCSAE_Trainer:
+    def __init__(self, n_latent, alpha, beta, gamma, rho, train_data, val_data, train_labels, val_labels, weights_path, hyperparameters_path):
+        super(NumDCSAE_Trainer, self).__init__()
+        self.n_latent = n_latent
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        self.rho = rho
+        self.num_epochs = 100
+        self.lr = 1e-4
+
+        self.dataset = train_data
+        self.validation_dataset = val_data
+        self.train_labels = train_labels
+        self.val_labels = val_labels
+        self.weights_path = weights_path
+        self.hyperparameters_path = hyperparameters_path
+
+        # Creating an instance of VAE Network for training at Client A
+        self.ClientA_Network = NumDCSAE(
+            self.n_latent,
+            self.alpha,
+            self.beta,
+            self.gamma,
+            self.rho,
+            self.dataset.shape[1]
+        )
+        
+    def train(self):
+        print(f'alpha={self.alpha}')
+        print(f'beta={self.beta}')
+        print(f'gamma={self.gamma}')
+        print(f'rho={self.rho}')
+        print(f'n_latent={self.n_latent}')
+
+        # Training the created VAE instance on the labelled dataset at Client A
+        self.ClientA_Network.train_self(
+            train_data=self.dataset,
+            val_data=self.validation_dataset,
+            train_labels=self.train_labels,
+            val_labels=self.val_labels,
+            epochs=self.num_epochs,
+            learning_rate = self.lr,
+            weights_file=self.weights_path,
+            hyperparameters_file = self.hyperparameters_path)
+
+    def latent(self):
+        result = self.ClientA_Network.testing(test_data=self.dataset, labels=self.train_labels, weight_file=self.weights_path)
+
+        ClientA_class = result["final_class"]
+
+        # Extracting latent space representation of each image in the training dataset
+        ClientA_Z = []
+        for i in range(len(result["final_negative_mean"])):
+            eps = torch.randn_like(result["final_negative_var"][i])
+            mean_cpu = result["final_negative_mean"][i].cpu().detach().numpy()
+            variance_cpu = result["final_negative_var"][i].cpu().detach().numpy()
+            eps = eps.cpu().detach().numpy()
+            z = mean_cpu + variance_cpu * eps
+            ClientA_Z.append(z)
+
+        return ClientA_Z, ClientA_class
+
+    def visualize(self, ClientA_Z, ClientA_class):
+        colors = ['red','green']
+        for i in range(len(ClientA_Z)):
+            z = ClientA_Z[i]
+            plt.scatter(z[0], z[1], c=colors[ClientA_class[i]])
+        plt.savefig("./latent.png", format="png")
+    
 class StandardVAE_Trainer:
     def __init__(self, n_latent, beta, n_chan, input_d, train_path, val_path, weights_path, hyperparameters_path):
         super(StandardVAE_Trainer, self).__init__()
@@ -144,6 +215,7 @@ class StandardVAE_Trainer:
         self.result = self.network.testing(data_path=self.dataset, weight_file=self.weights_path)
         self.ClientA_class = self.result["final_class"]
 
+        torch.manual_seed(0)
         # Extracting latent space representation of each image in the training dataset
         self.ClientA_Z = []
         for i in range(len(self.result["final_mean"])):
