@@ -4,8 +4,9 @@ import numpy as np
 
 from DCSAE_Encoder import DCSAE_Encoder
 from NumDCSAE_Encoder import NumDCSAE_Encoder
-from train import DCSAE_Trainer
-from train import NumDCSAE_Trainer
+
+from DCSAE_train import DCSAE_Trainer
+from DCSAE_train import NumDCSAE_Trainer
 
 class CAMARADERIE:
     def __init__(self, n_chan, input_d, n_latent, alpha, beta, gamma, rho, train_dataset, val_dataset, test_dataset, encoder_weights_path, weights_path, hyperparameters_path):
@@ -166,15 +167,6 @@ class NumCAMARADERIE:
         ClientB_class = result['final_class']
 
         torch.manual_seed(0)
-        ClientB_positive_features = []
-        for i in range(len(result["final_positive_mean"])):
-            eps = torch.randn_like(result["final_positive_var"][i])
-            mean_cpu = result["final_positive_mean"][i].cpu().detach().numpy()
-            variance_cpu = result["final_positive_var"][i].cpu().detach().numpy()
-            eps = eps.cpu().detach().numpy()
-            z = mean_cpu + variance_cpu * eps
-            ClientB_positive_features.append(z)
-
         ClientB_negative_features = []
         for i in range(len(result["final_negative_mean"])):
             eps = torch.randn_like(result["final_negative_var"][i])
@@ -185,9 +177,9 @@ class NumCAMARADERIE:
             ClientB_negative_features.append(z)
         print("Feature extraction complete")
 
-        return ClientB_positive_features, ClientB_negative_features, ClientB_class
+        return ClientB_negative_features, ClientB_class
 
-    def classify(self, ClientB_positive_features, ClientB_negative_features, ClientB_class):
+    def classify(self, ClientB_negative_features, ClientB_class):
         ClientA_features, ClientA_class = self.trainer.latent()
 
         ClientA_Z_tensor = torch.squeeze(torch.tensor(ClientA_features))

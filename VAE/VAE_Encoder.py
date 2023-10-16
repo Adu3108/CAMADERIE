@@ -3,14 +3,16 @@ import torch
 import torchvision
 import math
 
-class DCSAE_Encoder(torch.nn.Module):
+class VAE_Encoder(torch.nn.Module):
     def __init__(self,
                  n_latent: int,
                  n_chan: int,
-                 input_d: Tuple[int]) -> None:
-        super(DCSAE_Encoder, self).__init__()
+                 input_d: Tuple[int],
+                 batch: int = 1) -> None:
+        super(VAE_Encoder, self).__init__()
         # Initializing the class variables
         self.n_latent = n_latent
+        self.batch = batch
         self.n_chan = n_chan
         self.input_d = input_d
 
@@ -58,7 +60,8 @@ class DCSAE_Encoder(torch.nn.Module):
         self.enc_conv3_af = torch.nn.LeakyReLU(0.1)
         self.enc_conv3_pool = torch.nn.MaxPool2d(
             kernel_size=2,
-            return_indices=True, ceil_mode=True)
+            return_indices=True,
+            ceil_mode=True)
 
         self.enc_conv4 = torch.nn.Conv2d(
             in_channels=32,
@@ -84,17 +87,18 @@ class DCSAE_Encoder(torch.nn.Module):
         self.enc_dense3_af = torch.nn.LeakyReLU(0.1)
 
         # Latent Variables Calculation
-        self.enc_dense4_mu_positive = torch.nn.Linear(250, self.n_latent)
-        self.enc_dense4_mu_positive_af = torch.nn.LeakyReLU(0.1)
+        self.enc_dense4_mu = torch.nn.Linear(250, self.n_latent)
+        self.enc_dense4_mu_af = torch.nn.LeakyReLU(0.1)
 
-        self.enc_dense4_mu_negative = torch.nn.Linear(250, self.n_latent)
-        self.enc_dense4_mu_negative_af = torch.nn.LeakyReLU(0.1)
+        self.enc_dense4_var = torch.nn.Linear(250, self.n_latent)
+        self.enc_dense4_var_af = torch.nn.LeakyReLU(0.1)
 
-        self.enc_dense4_var_positive = torch.nn.Linear(250, self.n_latent)
-        self.enc_dense4_var_positive_af = torch.nn.LeakyReLU(0.1)
-
-        self.enc_dense4_var_negative = torch.nn.Linear(250, self.n_latent)
-        self.enc_dense4_var_negative_af = torch.nn.LeakyReLU(0.1)
+    def get_layer_size(self, layer: int) -> Tuple[int]:
+        y_l, x_l = self.input_d
+        for i in range(layer - 1):
+            y_l = math.ceil((y_l - 2) / 2 + 1)
+            x_l = math.ceil((x_l - 2) / 2 + 1)
+        return y_l, x_l
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         # Convolutional Encoder Network
@@ -130,46 +134,22 @@ class DCSAE_Encoder(torch.nn.Module):
         z = self.enc_dense3(z)
         z = self.enc_dense3_af(z)
 
-        return z
+        mu = self.enc_dense4_mu(z)
+        mu = self.enc_dense4_mu_af(mu)
+
+        var = self.enc_dense4_var(z)
+        var = self.enc_dense4_var_af(var)
+
+        return (mu, var)
     
-    def get_layer_size(self, layer: int) -> Tuple[int]:
-        y_l, x_l = self.input_d
-        for i in range(layer - 1):
-            y_l = math.ceil((y_l - 2) / 2 + 1)
-            x_l = math.ceil((x_l - 2) / 2 + 1)
-        return y_l, x_l
-
-    def positive_latent_calc(self, z: torch.Tensor) -> Tuple[torch.Tensor]:
-        mu = self.enc_dense4_mu_positive(z)
-        mu = self.enc_dense4_mu_positive_af(mu)
-
-        var = self.enc_dense4_var_positive(z)
-        var = self.enc_dense4_var_positive_af(var)
-
-        return mu, var
-    
-    def negative_latent_calc(self, z: torch.Tensor) -> Tuple[torch.Tensor]:
-        mu = self.enc_dense4_mu_negative(z)
-        mu = self.enc_dense4_mu_negative_af(mu)
-
-        var = self.enc_dense4_var_negative(z)
-        var = self.enc_dense4_var_negative_af(var)
-
-        return mu, var
-    
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor]:
-        positive_mean, positive_logvar = self.positive_latent_calc(self.encode(x))
-        negative_mean, negative_logvar = self.negative_latent_calc(self.encode(x))
-        return positive_mean, positive_logvar, negative_mean, negative_logvar
-
     def testing(self,
                 data_path: str,
                 weight_file: str):
-        # Using cuda (GPU) if available
+        # Using cuda if available
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print (f'Using device: {device}')
         network = self.to(device)
-        network.load_state_dict(torch.load(weight_file))# Load weights from the .pt file
+        network.load_state_dict(torch.load(weight_file)) # Load weights from the .pt file
         network.eval() # Set the network in evalution mode
 
         # Defining Image Transformations
@@ -189,39 +169,32 @@ class DCSAE_Encoder(torch.nn.Module):
         # Applying image transformations to the input test dataset
         dataset = torchvision.datasets.ImageFolder(
             root=data_path,
-            transform=transforms)
+            transform=transforms)        
 
         # Set up a Python iterable over the input test dataset
         test_loader = torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=1,
+            batch_size=self.batch,
             shuffle=True,
             drop_last=True)
 
         final_input = []
-        final_positive_mean = []
-        final_negative_mean = []
-        final_positive_var = []
-        final_negative_var = []
         final_class = []
+        final_mean = []
+        final_var = []
         for data in test_loader:
             input, class_name = data
             final_input.append(input)
             final_class.append(int(class_name))
             input = input.to(device)
             with torch.no_grad():
-                positive_mean, positive_logvariance, negative_mean, negative_logvariance = network.forward(input)
-                final_positive_mean.append(positive_mean)
-                final_positive_var.append(torch.exp(positive_logvariance/2))
-                final_negative_mean.append(negative_mean)
-                final_negative_var.append(torch.exp(negative_logvariance/2))
-        
+                mean, logvariance = network.encode(input)
+                final_mean.append(mean)
+                final_var.append(torch.exp(logvariance/2))
+
         result = dict()
         result['final_input'] = final_input
         result['final_class'] = final_class
-        result['final_positive_mean'] = final_positive_mean
-        result['final_positive_var'] = final_positive_var
-        result['final_negative_mean'] = final_negative_mean
-        result['final_negative_var'] = final_negative_var
-
+        result['final_mean'] = final_mean
+        result['final_var'] = final_var
         return result
