@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import os
 
-from DC_SAE import DCSAE
-from NumDC_SAE import NumDCSAE
+from DCSAE.DC_SAE import DCSAE
+from DCSAE.NumDC_SAE import NumDCSAE
 
 class DCSAE_Trainer:
     def __init__(self, n_latent, alpha, beta, gamma, rho, n_chan, input_d, train_path, val_path, weights_path, hyperparameters_path):

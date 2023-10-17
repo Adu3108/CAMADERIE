@@ -2,11 +2,11 @@ import torch
 from sklearn.svm import SVC
 import numpy as np
 
-from NumVAE_Encoder import NumVAE_Encoder
-from VAE_Encoder import VAE_Encoder
+from VAE.NumVAE_Encoder import NumVAE_Encoder
+from VAE.VAE_Encoder import VAE_Encoder
 
-from VAE_train import VAE_Trainer
-from VAE_train import NumVAE_Trainer
+from VAE.VAE_train import VAE_Trainer
+from VAE.VAE_train import NumVAE_Trainer
 
 class VAE_CAMARADERIE:
     def __init__(self, n_chan, input_d, n_latent, beta, train_dataset, val_dataset, test_dataset, encoder_weights_path, weights_path, hyperparameters_path):

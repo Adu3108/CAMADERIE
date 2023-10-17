@@ -2,11 +2,11 @@ import torch
 from sklearn.svm import SVC
 import numpy as np
 
-from DCSAE_Encoder import DCSAE_Encoder
-from NumDCSAE_Encoder import NumDCSAE_Encoder
+from DCSAE.DCSAE_Encoder import DCSAE_Encoder
+from DCSAE.NumDCSAE_Encoder import NumDCSAE_Encoder
 
-from DCSAE_train import DCSAE_Trainer
-from DCSAE_train import NumDCSAE_Trainer
+from DCSAE.DCSAE_train import DCSAE_Trainer
+from DCSAE.DCSAE_train import NumDCSAE_Trainer
 
 class CAMARADERIE:
     def __init__(self, n_chan, input_d, n_latent, alpha, beta, gamma, rho, train_dataset, val_dataset, test_dataset, encoder_weights_path, weights_path, hyperparameters_path):
